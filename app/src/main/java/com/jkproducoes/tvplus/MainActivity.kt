@@ -66,8 +66,9 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        // Voltou para o app (saiu e entrou de novo): confere se tem versão nova
-        if (lastCheck > 0 && System.currentTimeMillis() - lastCheck > 10 * 60 * 1000) checkUpdate(false)
+        // Toda vez que o app volta a ser aberto, confere se tem versão nova
+        // (os 15 segundos só evitam conferir duas vezes seguidas ao abrir)
+        if (lastCheck > 0 && System.currentTimeMillis() - lastCheck > 15 * 1000) checkUpdate(false)
     }
 
     // ------------------------------------------------------------ atualização automática
