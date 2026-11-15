@@ -1,7 +1,9 @@
-// ===== Configuração do app TVPlus+ =====
-// Coloque aqui as DNS (uma por linha). O app testa em ordem até achar a que aceita o login.
+// ===== Configuração do app Plustv Revenda =====
 window.APP_CONFIG = {
-  name: "TVPlus+",
+  name: "Plustv Revenda",
+  // Endereço do Painel TVPlus+ Revenda (onde os clientes são cadastrados)
+  panel: "https://plustv-revenda.floot.app",
+  // DNS de reserva: o app tenta primeiro a DNS que vem do painel e, se falhar, estas em ordem.
   dns: [
     "http://yt19.org",
     "http://wempy.online:8080",
@@ -9,6 +11,6 @@ window.APP_CONFIG = {
     "http://t.smts.top:8880",
     "http://foofighters.click"
   ],
-  // WhatsApp de suporte (com DDI 55 + DDD). Deixe "" para esconder.
+  // WhatsApp de suporte padrão (quando o revendedor não tiver um). Com DDI 55 + DDD.
   whatsapp: "5583991485424"
 };
