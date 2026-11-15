@@ -55,6 +55,12 @@
     var cor = isOwnBrand() && /^#[0-9a-f]{6}$/i.test(brand.cor || "") ? brand.cor : "";
     st.textContent = cor ? ":root{--red:" + cor + ";--red2:" + cor + ";--redd:" + darker(cor) + "}" : "";
     document.documentElement.setAttribute("data-modelo", String(modelo()));
+    // Plano de fundo escolhido pelo revendedor no painel
+    var fundo = brand && typeof brand.fundo === "string" && /^(data:image\/(jpeg|png|webp);base64,|https:\/\/)/.test(brand.fundo) ? brand.fundo : "";
+    if (fundo) {
+      document.documentElement.setAttribute("data-fundo", "1");
+      st.textContent += 'html[data-fundo],html[data-fundo] body{background:linear-gradient(rgba(0,0,0,.5),rgba(0,0,0,.66)),url("' + fundo.replace(/"/g, "%22") + '") center/cover no-repeat #000 !important}';
+    } else document.documentElement.removeAttribute("data-fundo");
     document.title = brandName();
   }
   // Modelo do visual escolhido no painel: 1 = Clássico, 2 = Aurora, 3 = Cinema, 4 = Destaque
@@ -658,7 +664,7 @@
         var self = this;
         $app.innerHTML = frame("home",
           '<div class="hhead"><img class="hlogo" src="' + esc(logoSrc()) + '" alt=""><span>' + ICON.user + " " + esc(creds.user) + '</span><span>' + ICON.calsm + " " + esc(fmtDate(account && account.exp_date)) + '</span><span class="clock">' + clock() + "</span></div>" +
-          '<button class="banner focusable" data-k="banner"><div class="bimg"></div><div class="btxt"><b>TVPlus+</b><small>Carregando destaques...</small><p class="bplot"></p></div><div class="dots"></div></button>' +
+          '<button class="banner focusable" data-k="banner"><div class="bimg"></div><div class="btxt"><b>' + esc(brandName()) + '</b><small>Carregando destaques...</small><p class="bplot"></p></div><div class="dots"></div></button>' +
           '<div class="plats"></div>' + payFoot());
         bindRail("home");
         var pf = $app.querySelector(".payfoot"); if (pf) pf.onclick = function () { go(pixScreen()); };

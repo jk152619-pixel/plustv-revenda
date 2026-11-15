@@ -614,3 +614,19 @@ html[data-modelo="4"] .dev.on { border-color: var(--red); box-shadow: 0 0 0 2px 
 html[data-modelo="4"] .dev.on .radio { border-color: var(--red); background: radial-gradient(var(--red) 45%, transparent 50%); }
 html[data-modelo="4"] .h4col h4 { font-size: 14px; letter-spacing: 1px; }
 html[data-modelo="4"] .payfoot { font-size: 13px; padding: 6px 10px; }
+
+/* ===== Plano de fundo do revendedor (vale para todos os modelos) ===== */
+html[data-fundo] .wm { display: none; }
+html[data-fundo] .login, html[data-fundo] .devs-wrap, html[data-fundo] .vd, html[data-fundo] .banner { background-color: transparent; }
+html[data-fundo] .login { background: transparent !important; }
+html[data-fundo] .devs-wrap { background: transparent !important; }
+html[data-fundo] .vd { background: rgba(0,0,0,.35); }
+html[data-fundo] .rail { background: rgba(0,0,0,.55); }
+html[data-fundo][data-modelo="2"] .rail { background: rgba(10,12,40,.55); }
+html[data-fundo][data-modelo="3"] .rail { background: linear-gradient(rgba(0,0,0,.85), rgba(0,0,0,.55)); }
+html[data-fundo][data-modelo="4"] .rail { background: var(--red); }
+html[data-fundo][data-modelo="4"] .h4l { background: rgba(0,0,0,.35); }
+html[data-fundo] .groups, html[data-fundo] .chans { background: rgba(0,0,0,.28); }
+html[data-fundo] .banner { background: rgba(0,0,0,.38) !important; }
+html[data-fundo] .h4prev { background: rgba(0,0,0,.45); }
+html[data-fundo] .hhead .hlogo { height: 52px; }
