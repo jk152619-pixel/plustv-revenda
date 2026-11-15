@@ -35,7 +35,7 @@ class MainActivity : Activity() {
 
     companion object {
         /** Onde fica o APK novo (gerado automaticamente pelo GitHub a cada envio). */
-        private const val UPDATE_BASE = "https://github.com/jk152619-pixel/tvplus-player./releases/download/latest/"
+        private const val UPDATE_BASE = "https://github.com/jk152619-pixel/plustv-revenda/releases/download/latest/"
         private const val REQ_UNKNOWN_SOURCES = 77
     }
 
@@ -272,6 +272,30 @@ class MainActivity : Activity() {
             }.start()
         }
 
+        /** POST com JSON (login no painel de revenda). Devolve a resposta mesmo com erro (401/403), para o app mostrar o aviso. */
+        @JavascriptInterface
+        fun post(id: String, url: String, json: String) {
+            Thread {
+                try {
+                    val conn = URL(url).openConnection() as HttpURLConnection
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 30000
+                    conn.requestMethod = "POST"
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.setRequestProperty("User-Agent", PlayerActivity.USER_AGENT)
+                    conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                    val code = conn.responseCode
+                    val stream = if (code < 400) conn.inputStream else conn.errorStream
+                    val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                    conn.disconnect()
+                    deliver(id, true, body)
+                } catch (e: Throwable) {
+                    deliver(id, false, e.javaClass.simpleName + ": " + (e.message ?: ""))
+                }
+            }.start()
+        }
+
         @JavascriptInterface
         fun play(json: String) {
             val i = Intent(this@MainActivity, PlayerActivity::class.java)
@@ -291,6 +315,13 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun lastWatched(key: String): String =
             getSharedPreferences("tvplus_watch", MODE_PRIVATE).getString(key, "") ?: ""
+
+        /** ID fixo do aparelho (o painel usa para prender o acesso a um aparelho só). */
+        @SuppressLint("HardwareIds")
+        @JavascriptInterface
+        fun deviceId(): String = try {
+            Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+        } catch (e: Exception) { "" }
 
         @JavascriptInterface
         fun checkUpdate() { runOnUiThread { this@MainActivity.checkUpdate(true) } }
