@@ -54,8 +54,11 @@
     if (!st) { st = document.createElement("style"); st.id = "brandCss"; document.head.appendChild(st); }
     var cor = isOwnBrand() && /^#[0-9a-f]{6}$/i.test(brand.cor || "") ? brand.cor : "";
     st.textContent = cor ? ":root{--red:" + cor + ";--red2:" + cor + ";--redd:" + darker(cor) + "}" : "";
+    document.documentElement.setAttribute("data-modelo", String(modelo()));
     document.title = brandName();
   }
+  // Modelo do visual escolhido no painel: 1 = Clássico, 2 = Aurora, 3 = Cinema, 4 = Destaque
+  function modelo() { var m = brand && Number(brand.modelo); return m === 2 || m === 3 || m === 4 ? m : 1; }
   function setBrand(m) { brand = m || null; save("brand", brand); applyBrand(); }
   applyBrand();
 
@@ -272,7 +275,7 @@
     var r = cur.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     var best = null, bestScore = Infinity;
-    var zoneSel = ".rail,.groups,.chans,.content,.detail,.login-box,.devs,.sp-side,.sp-main";
+    var zoneSel = ".rail,.groups,.chans,.content,.detail,.login-box,.devs,.sp-side,.sp-main,.h4l,.h4c";
     var myZone = cur.closest ? cur.closest(zoneSel) : null;
     if (myZone && (dir === "up" || dir === "down") && !myZone.classList.contains("top")) {
       // Primeiro tenta ficar na mesma área (lista, menu lateral...)
@@ -544,7 +547,7 @@
     return {
       name: "login",
       render: function () {
-        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head">' + ICON.user + '</div><div class="lb-body">' +
+        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head">' + (modelo() > 1 ? '<img src="' + esc(logoSrc()) + '" alt="">' : ICON.user) + '</div><div class="lb-body">' +
           '<h2>Login com nome de usuário!</h2>' +
           '<label class="lf">' + ICON.person + '<input id="u" class="focusable" placeholder="Usuário" autocomplete="off" autocapitalize="none"></label>' +
           '<label class="lf">' + ICON.lock + '<input id="p" class="focusable" type="password" placeholder="Senha" autocomplete="off" autocapitalize="none"><button class="eye focusable" type="button">' + ICON.eye + '</button></label>' +
@@ -584,7 +587,7 @@
     var r = "";
     for (var i = 0; i < TABS.length; i++)
       r += '<button class="ri focusable' + (TABS[i][0] === tab ? " on" : "") + '" data-k="rail-' + TABS[i][0] + '" data-t="' + TABS[i][0] + '" title="' + TABS[i][1] + '">' + ICON[TABS[i][0]] + "</button>";
-    return '<div class="shell">' + wm() + '<nav class="rail">' + r + '</nav><main class="main">' + inner + "</main></div>";
+    return '<div class="shell">' + wm() + '<nav class="rail' + (modelo() === 3 ? " top" : "") + '">' + r + '</nav><main class="main">' + inner + "</main></div>";
   }
   function bindRail(tab) {
     var b = $app.querySelectorAll(".ri");
@@ -648,6 +651,7 @@
 
   // ---------- Início ----------
   function homeScreen() {
+    if (modelo() === 4) return homeScreen4();
     return {
       name: "home",
       render: function (back) {
@@ -717,6 +721,95 @@
         }, function () {});
         if (!slides.length) $app.querySelector(".banner").onclick = function () { go(vodScreen()); };
         if (back) restore(self, ".banner"); else focusEl($app.querySelector('[data-k="rail-tv"]') || $app.querySelector(".banner"));
+      }
+    };
+  }
+
+
+  // ---------- Início do modelo 4 (Destaque): prévia + canais à esquerda, colunas de capas à direita ----------
+  var PLAY_SVG = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+  function homeScreen4() {
+    return {
+      name: "home",
+      render: function (back) {
+        var self = this;
+        function col(id, t) { return '<section class="h4col"><h4>' + t + '</h4><div class="h4c" id="' + id + '"><div class="h4wait">Carregando...</div></div></section>'; }
+        $app.innerHTML = frame("home",
+          '<div class="h4">' +
+            '<div class="h4l">' +
+              '<div class="h4top"><img class="hlogo" src="' + esc(logoSrc()) + '" alt=""><span class="h4user">' + ICON.user + " " + esc(creds.user) + '</span><span class="clock">' + clock() + '</span></div>' +
+              '<button class="h4prev focusable" data-k="h4prev"><div class="bimg"></div><i class="h4play">' + PLAY_SVG + '</i><div class="h4cap"><b>' + esc(brandName()) + '</b><small>Carregando destaques...</small></div></button>' +
+              '<div class="h4list"><div class="h4wait">Carregando canais...</div></div>' +
+              payFoot() +
+            '</div>' +
+            '<div class="h4r">' + col("h4rec", "Destaques") + col("h4new", "Novidades") + col("h4cont", "Continuar") + '</div>' +
+          '</div>');
+        bindRail("home");
+        var pf = $app.querySelector(".payfoot"); if (pf) pf.onclick = function () { go(pixScreen()); };
+        var prev = $app.querySelector(".h4prev"), bimg = prev.querySelector(".bimg"), cb = prev.querySelector(".h4cap b"), cs = prev.querySelector(".h4cap small");
+        prev.onclick = function () { go(vodScreen()); };
+        function alive() { return document.body.contains(prev); }
+
+        // Canais: favoritos primeiro, depois os primeiros da lista
+        Promise.all([api("get_live_categories"), api("get_live_streams")]).then(function (r) {
+          if (!alive()) return;
+          var all = visible(r[1], lockMap(r[0])), f = favs("live");
+          var list = all.filter(function (c) { return f[c.stream_id]; }).concat(all.filter(function (c) { return !f[c.stream_id]; })).slice(0, 12);
+          var box = $app.querySelector(".h4list");
+          if (!list.length) { box.innerHTML = '<div class="h4wait">Nenhum canal</div>'; return; }
+          box.innerHTML = list.map(function (c, i) {
+            return '<button class="h4ch focusable" data-k="h4ch-' + c.stream_id + '" data-i="' + i + '"><span class="h4n">' + pad(c.num || i + 1, 3) + '</span>' +
+              (c.stream_icon ? '<img src="' + esc(c.stream_icon) + '" alt="">' : '<i class="h4ico">' + ICON.tv + '</i>') +
+              '<span class="h4cn"><b>' + esc(c.name) + (f[c.stream_id] ? " ★" : "") + '</b><small>TV ao vivo · OK para assistir</small></span></button>';
+          }).join("");
+          var b = box.querySelectorAll(".h4ch");
+          for (var i = 0; i < b.length; i++) b[i].onclick = function () {
+            var k = Number(this.getAttribute("data-i")), c = list[k];
+            addHist({ k: "l" + c.stream_id, type: "live", name: c.name, img: c.stream_icon, id: c.stream_id });
+            playLive(list, k);
+          };
+          if (back) restore(self, ".h4prev");
+        }, function () { var box = $app.querySelector(".h4list"); if (box) box.innerHTML = '<div class="h4wait">Não foi possível carregar os canais</div>'; });
+
+        function cards(id, items) {
+          var box = $app.querySelector("#" + id); if (!box) return;
+          if (!items.length) { box.innerHTML = '<div class="h4wait">' + (id === "h4cont" ? "Assista algo e ele aparece aqui" : "Nada por enquanto") + '</div>'; return; }
+          box.innerHTML = items.map(function (x, i) {
+            return '<button class="card h4card focusable" data-k="' + id + i + '" data-i="' + i + '"><div class="poster"' + bg(x.img) + '></div><span>' + esc(x.name) + '</span></button>';
+          }).join("");
+          var b = box.querySelectorAll(".card");
+          for (var i = 0; i < b.length; i++) b[i].onclick = function () { var x = items[Number(this.getAttribute("data-i"))]; openItem(x.type, x.it); };
+        }
+        cards("h4cont", history.filter(function (x) { return x.type !== "live" && x.it; }).slice(0, 8).map(function (x) { return { type: x.type, name: x.name, img: x.img, it: x.it }; }));
+
+        vodData().then(function (D) {
+          if (!alive()) return;
+          function mv(m) { return { type: "movie", name: m.name, img: m.stream_icon, it: m }; }
+          function sr(x) { return { type: "series", name: x.name, img: x.cover, it: x }; }
+          var rated = D.movies.filter(function (m) { return m.stream_icon && Number(m.rating) > 0; }).sort(function (a, b) { return Number(b.rating) - Number(a.rating); }).slice(0, 4).map(mv)
+            .concat(D.series.filter(function (x) { return x.cover && Number(x.rating) > 0; }).sort(function (a, b) { return Number(b.rating) - Number(a.rating); }).slice(0, 4).map(sr));
+          if (rated.length < 4) rated = rated.concat(D.movies.filter(function (m) { return m.stream_icon; }).slice(0, 8 - rated.length).map(mv));
+          var fresh = interleave(recent(D.movies, "added", 6).map(mv), recent(D.series, "last_modified", 6).map(sr)).slice(0, 8);
+          cards("h4rec", rated.slice(0, 8)); cards("h4new", fresh);
+          // Prévia: troca os destaques a cada 6 segundos
+          var slides = [];
+          recent(D.series, "last_modified", 20).forEach(function (x) { var bd = x.backdrop_path && x.backdrop_path[0]; if (bd && slides.length < 6) slides.push({ img: bd, name: x.name, type: "series", it: x }); });
+          recent(D.movies, "added", 10).forEach(function (m) { if (m.stream_icon && slides.length < 6) slides.push({ img: m.stream_icon, name: m.name, type: "movie", it: m }); });
+          var si = 0;
+          function slide() {
+            if (!alive() || !slides.length) return;
+            var x = slides[si % slides.length]; si++;
+            bimg.style.backgroundImage = "url('" + String(x.img).replace(/'/g, "%27") + "')";
+            bimg.style.backgroundSize = x.type === "series" ? "cover" : "contain";
+            cb.textContent = x.name; cs.textContent = x.type === "series" ? "Série · OK para abrir" : "Filme · OK para assistir";
+            prev.onclick = function () { openItem(x.type, x.it); };
+          }
+          if (slides.length) { slide(); var t = setInterval(function () { if (!alive()) clearInterval(t); else slide(); }, 6000); }
+          else cs.textContent = "OK para abrir Filmes e Séries";
+          if (back) restore(self, ".h4prev");
+        }, function () {});
+
+        if (back) restore(self, ".h4prev"); else focusEl($app.querySelector('[data-k="rail-tv"]') || prev);
       }
     };
   }

@@ -2,7 +2,7 @@
 window.APP_CONFIG = {
   name: "Plustv Revenda",
   // Endereço do Painel TVPlus+ Revenda (onde os clientes são cadastrados)
-  panel: "https://plustv-revenda.floot.app",
+  panel: "https://revenda.jkproducoes.app.br",
   // DNS de reserva: o app tenta primeiro a DNS que vem do painel e, se falhar, estas em ordem.
   dns: [
     "http://yt19.org",
