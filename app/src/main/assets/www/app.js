@@ -9,6 +9,56 @@
     if (m) DNS = [decodeURIComponent(m[1])];
   }
 
+  // ---------------- painel de revenda (Plustv Revenda) ----------------
+  var PANEL = String(C.panel || "").replace(/\/+$/, "");
+  var brand = load("brand", null); // marca de quem vendeu (vem do painel)
+  function devId() {
+    try { if (isNative && window.Native.deviceId) { var v = window.Native.deviceId(); if (v) return String(v).toUpperCase(); } } catch (e) {}
+    var d = load("dev_id", null);
+    if (!d) { d = (Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)).toUpperCase(); save("dev_id", d); }
+    return d;
+  }
+  function panelLogin(user, pass) {
+    return new Promise(function (resolve, reject) {
+      function netErr() { var e = new Error("Sem conexão com o painel. Confira a internet e tente de novo."); e.codigo = "rede"; return e; }
+      var body = JSON.stringify({ usuario: user, senha: pass, aparelho: devId() });
+      if (isNative && window.Native.post) {
+        var id = "p" + (++cbSeq);
+        cbs[id] = function (ok, text) { if (!ok) return reject(netErr()); var d; try { d = JSON.parse(text); } catch (e) { return reject(netErr()); } resolve(d); };
+        window.Native.post(id, PANEL + "/_api/app/login", body);
+        return;
+      }
+      try {
+        var x = new XMLHttpRequest();
+        x.open("POST", PANEL + "/_api/app/login", true);
+        x.setRequestHeader("Content-Type", "application/json");
+        x.timeout = 20000;
+        x.onload = function () { var d; try { d = JSON.parse(x.responseText); } catch (e) { return reject(netErr()); } resolve(d); };
+        x.onerror = x.ontimeout = function () { reject(netErr()); };
+        x.send(body);
+      } catch (e) { reject(netErr()); }
+    });
+  }
+  function isOwnBrand() { return !!(brand && brand.propria); }
+  function logoSrc() { return isOwnBrand() && brand.logo ? brand.logo : "logo.png"; }
+  function brandName() { return isOwnBrand() && brand.nome ? brand.nome : (C.name || "TVPlus+"); }
+  function WA() { return (brand && brand.whatsapp) || C.whatsapp || ""; }
+  function canPix() { return !brand || brand.doDono !== false; }
+  function darker(hex) {
+    var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    function h(v) { v = Math.max(0, Math.round(v * 0.45)); return (v < 16 ? "0" : "") + v.toString(16); }
+    return "#" + h(r) + h(g) + h(b);
+  }
+  function applyBrand() {
+    var st = document.getElementById("brandCss");
+    if (!st) { st = document.createElement("style"); st.id = "brandCss"; document.head.appendChild(st); }
+    var cor = isOwnBrand() && /^#[0-9a-f]{6}$/i.test(brand.cor || "") ? brand.cor : "";
+    st.textContent = cor ? ":root{--red:" + cor + ";--red2:" + cor + ";--redd:" + darker(cor) + "}" : "";
+    document.title = brandName();
+  }
+  function setBrand(m) { brand = m || null; save("brand", brand); applyBrand(); }
+  applyBrand();
+
   // ---------------- utilidades ----------------
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -131,11 +181,34 @@
     });
   }
 
+  // 1º confere no painel (existe, não venceu, não está bloqueado, aparelho certo); depois entra no servidor de canais
   function tryLogin(user, pass) {
+    return panelLogin(user, pass).then(function (d) {
+      if (d && d.marca) setBrand(d.marca);
+      if (!d || !d.ok) {
+        var e = new Error((d && d.erro) || "Não foi possível entrar");
+        e.codigo = (d && d.codigo) || "invalido";
+        if (e.codigo === "vencido" || e.codigo === "bloqueado" || e.codigo === "aparelho") e.message += WA() ? " WhatsApp: " + fmtPhone(WA()) : "";
+        throw e;
+      }
+      var c = d.cliente;
+      return serverLogin(c.usuario, c.senha, c.dns).then(function (r) {
+        var ts = Math.floor(new Date(c.vencimento).getTime() / 1000);
+        if (ts) r.info.exp_date = String(ts);
+        return r;
+      }, function () {
+        var e = new Error("Seu acesso ainda não foi ativado no servidor. Fale com seu revendedor.");
+        e.codigo = "servidor"; throw e;
+      });
+    });
+  }
+  function serverLogin(user, pass, firstDns) {
+    var list = DNS.slice();
+    if (firstDns) { list = list.filter(function (x) { return x.replace(/\/+$/, "") !== firstDns.replace(/\/+$/, ""); }); list.unshift(firstDns); }
     var i = 0, lastErr = "Não foi possível conectar ao servidor";
     function next() {
-      if (i >= DNS.length) return Promise.reject(new Error(lastErr));
-      var dns = DNS[i++];
+      if (i >= list.length) return Promise.reject(new Error(lastErr));
+      var dns = list[i++];
       return httpGet(baseApi(dns, user, pass)).then(function (t) {
         var d = JSON.parse(t);
         if (d && d.user_info && String(d.user_info.auth) === "1") return { dns: dns, info: d.user_info };
@@ -342,7 +415,7 @@
   };
   function wm() { // marca d'água TVPlus+ no fundo
     var s = "";
-    for (var i = 0; i < 18; i++) s += "<span>TVPlus+</span>";
+    for (var i = 0; i < 18; i++) s += "<span>" + esc(brandName()) + "</span>";
     return '<div class="wm">' + s + "</div>";
   }
   function arr(x) { return Array.isArray(x) ? x : []; }
@@ -389,7 +462,7 @@
     return {
       name: "pin",
       render: function () {
-        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head"><img src="logo.png" alt=""></div><div class="lb-body">' +
+        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head"><img src="' + esc(logoSrc()) + '" alt=""></div><div class="lb-body">' +
           "<h2>🔒 " + esc(title || "Conteúdo bloqueado") + "</h2>" +
           '<label class="lf">' + ICON.lock + '<input id="pin" class="focusable" type="password" inputmode="numeric" placeholder="Senha do controle dos pais" autocomplete="off"></label>' +
           '<div class="msg" id="pmsg"></div><button class="btn-login focusable" id="pok">LIBERAR</button>' +
@@ -410,7 +483,7 @@
     return {
       name: "newpin",
       render: function () {
-        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head"><img src="logo.png" alt=""></div><div class="lb-body">' +
+        $app.innerHTML = '<div class="login">' + wm() + '<div class="login-box"><div class="lb-head"><img src="' + esc(logoSrc()) + '" alt=""></div><div class="lb-body">' +
           "<h2>Nova senha do controle dos pais</h2>" +
           '<label class="lf">' + ICON.lock + '<input id="n1" class="focusable" type="password" inputmode="numeric" placeholder="Nova senha (4 números ou mais)" autocomplete="off"></label>' +
           '<label class="lf">' + ICON.lock + '<input id="n2" class="focusable" type="password" inputmode="numeric" placeholder="Repita a nova senha" autocomplete="off"></label>' +
@@ -477,7 +550,7 @@
           '<label class="lf">' + ICON.lock + '<input id="p" class="focusable" type="password" placeholder="Senha" autocomplete="off" autocapitalize="none"><button class="eye focusable" type="button">' + ICON.eye + '</button></label>' +
           '<div class="msg">' + esc(msg || "") + '</div>' +
           '<button class="btn-login focusable">LOGIN</button>' +
-          (C.whatsapp ? '<div class="support">Suporte: WhatsApp ' + esc(fmtPhone(C.whatsapp)) + '</div>' : "") +
+          (WA() ? '<div class="support">Suporte: WhatsApp ' + esc(fmtPhone(WA())) + '</div>' : "") +
           '</div></div><div class="net">' + ICON.wifi + '</div></div>';
         var u = $app.querySelector("#u"), p = $app.querySelector("#p");
         if (creds) { u.value = creds.user; }
@@ -580,7 +653,7 @@
       render: function (back) {
         var self = this;
         $app.innerHTML = frame("home",
-          '<div class="hhead"><img class="hlogo" src="logo.png" alt=""><span>' + ICON.user + " " + esc(creds.user) + '</span><span>' + ICON.calsm + " " + esc(fmtDate(account && account.exp_date)) + '</span><span class="clock">' + clock() + "</span></div>" +
+          '<div class="hhead"><img class="hlogo" src="' + esc(logoSrc()) + '" alt=""><span>' + ICON.user + " " + esc(creds.user) + '</span><span>' + ICON.calsm + " " + esc(fmtDate(account && account.exp_date)) + '</span><span class="clock">' + clock() + "</span></div>" +
           '<button class="banner focusable" data-k="banner"><div class="bimg"></div><div class="btxt"><b>TVPlus+</b><small>Carregando destaques...</small><p class="bplot"></p></div><div class="dots"></div></button>' +
           '<div class="plats"></div>' + payFoot());
         bindRail("home");
@@ -1242,15 +1315,15 @@
       render: function (back) {
         var self = this;
         var ver = ""; try { if (window.Native && window.Native.version) ver = window.Native.version(); } catch (e) {}
-        $app.innerHTML = frame("set", '<div class="content full set"><div class="sethead"><img src="logo.png" alt=""><h2>Configurações</h2></div>' +
-          '<div class="info"><p>Usuário: <b>' + esc(creds.user) + "</b></p><p>Vencimento: <b>" + esc(fmtDate(account && account.exp_date)) + "</b></p><p>Telas: <b>" + esc((account && account.max_connections) || "1") + "</b></p>" + (ver ? "<p>Versão do app: <b>" + esc(ver) + "</b></p>" : "") + "</div>" +
-          '<button class="sbtn pixbtn focusable" data-k="a-pix" data-a="pix">💳 Pagamento Pix · Renovar plano</button>' +
+        $app.innerHTML = frame("set", '<div class="content full set"><div class="sethead"><img src="' + esc(logoSrc()) + '" alt=""><h2>Configurações</h2></div>' +
+          '<div class="info"><p>Usuário: <b>' + esc(creds.user) + "</b></p><p>Vencimento: <b>" + esc(fmtDate(account && account.exp_date)) + "</b></p><p>Telas: <b>" + esc((account && account.max_connections) || "1") + "</b></p>" + (ver ? "<p>Versão do app: <b>" + esc(ver) + "</b></p>" : "") + "<p>ID do aparelho: <b>" + esc(devId()) + "</b></p></div>" +
+          '<button class="sbtn pixbtn focusable" data-k="a-pix" data-a="pix">' + (canPix() ? "💳 Pagamento Pix · Renovar plano" : "🔄 Renovar plano") + "</button>" +
           '<button class="sbtn focusable" data-k="a-dev" data-a="dev">Tipo de dispositivo: ' + (device === "phone" ? "Celular" : "TV") + "</button>" +
           '<button class="sbtn focusable" data-k="a-adult" data-a="adult">🔒 Conteúdo adulto: ' + (lockOn() ? "bloqueado" : "liberado") + "</button>" +
           '<button class="sbtn focusable" data-k="a-pin" data-a="pin">Trocar senha do controle dos pais</button>' +
           '<button class="sbtn focusable" data-k="a-hist" data-a="hist">Limpar histórico</button>' +
           (window.Native && window.Native.checkUpdate ? '<button class="sbtn focusable" data-k="a-upd" data-a="upd">Verificar atualização</button>' : "") +
-          (C.whatsapp ? '<button class="sbtn focusable" data-k="a-wa" data-a="wa">Suporte: WhatsApp ' + esc(fmtPhone(C.whatsapp)) + "</button>" : "") +
+          (WA() ? '<button class="sbtn focusable" data-k="a-wa" data-a="wa">Suporte: WhatsApp ' + esc(fmtPhone(WA())) + "</button>" : "") +
           '<button class="sbtn red focusable" data-k="a-out" data-a="out">Sair da conta</button>' +
           '<p class="pinhint">Senha padrão do controle dos pais: <b>' + DEFAULT_PIN + "</b>. Troque para uma só sua.</p></div>");
         bindRail("set");
@@ -1263,7 +1336,7 @@
           else if (a === "pin") askPin(function () { setTimeout(function () { go(newPinScreen()); }, 0); }, "Controle dos pais");
           else if (a === "hist") { history = []; save("hist", []); toast("Histórico limpo"); }
           else if (a === "upd") { toast("Verificando atualização..."); window.Native.checkUpdate(); }
-          else if (a === "wa") toast("Chame no WhatsApp: " + fmtPhone(C.whatsapp), 5000);
+          else if (a === "wa") toast("Chame no WhatsApp: " + fmtPhone(WA()), 5000);
           else if (a === "out") { save("account", null); account = null; cache = {}; epgCache = {}; adultUnlocked = false; stack = []; show(loginScreen()); }
         };
         if (back) restore(self, ".sbtn"); else focusFirst(".sbtn");
@@ -1291,6 +1364,14 @@
   }
   function payFoot() {
     var d = daysLeft();
+    if (!canPix()) {
+      var w = WA() ? " WhatsApp " + fmtPhone(WA()) : "";
+      if (d !== null && d <= 5) {
+        var t2 = d < 0 ? "Seu plano venceu" : d === 0 ? "Seu plano vence hoje" : d === 1 ? "Seu plano vence amanhã" : "Seu plano vence em " + d + " dias";
+        return '<button class="payfoot warn focusable" data-k="payfoot">⚠️ ' + t2 + ". Renove com seu revendedor" + esc(w) + "</button>";
+      }
+      return '<button class="payfoot focusable" data-k="payfoot">🔄 Para renovar, fale com seu revendedor' + esc(w) + "</button>";
+    }
     if (d !== null && d <= 5) {
       var t = d < 0 ? "Seu plano venceu" : d === 0 ? "Seu plano vence hoje" : d === 1 ? "Seu plano vence amanhã" : "Seu plano vence em " + d + " dias";
       return '<button class="payfoot warn focusable" data-k="payfoot">⚠️ ' + t + ". Pague pelo Pix em Configurações › Pagamento</button>";
@@ -1306,7 +1387,24 @@
     var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
     ta.remove(); toast(ok ? "Código Pix copiado! Cole no app do seu banco" : "Não deu para copiar. Use a chave: " + PIX.chaveFmt, 5000);
   }
-  function pixScreen() {
+  function pixScreen() { return canPix() ? pixScreenDono() : renewScreen(); }
+  function renewScreen() {
+    return {
+      name: "pix",
+      render: function () {
+        var w = WA();
+        $app.innerHTML = frame("set", '<div class="content full set"><div class="sethead"><img src="' + esc(logoSrc()) + '" alt=""><h2>Renovar plano</h2></div>' +
+          '<div class="info"><p>Vencimento: <b>' + esc(fmtDate(account && account.exp_date)) + "</b></p>" +
+          "<p>Para renovar, fale com <b>" + esc(brandName()) + "</b>" + (w ? " no WhatsApp <b>" + esc(fmtPhone(w)) + "</b>" : "") + " e informe o seu usuário <b>" + esc(creds.user) + "</b>.</p>" +
+          "<p>Assim que o revendedor renovar, o app libera sozinho.</p></div>" +
+          '<button class="sbtn focusable" data-k="rn-back">Voltar</button></div>');
+        bindRail("set");
+        $app.querySelector('[data-k="rn-back"]').onclick = function () { window.appBack(); };
+        focusEl($app.querySelector('[data-k="rn-back"]'));
+      }
+    };
+  }
+  function pixScreenDono() {
     return {
       name: "pix",
       render: function () {
@@ -1330,7 +1428,7 @@
             "</div>" +
             '<div class="pcard plans"><div class="ptitle">Planos</div>' +
               '<div class="prow phd"><span class="c1">Plano</span><span class="c2">Telas</span><span class="c3">Período</span><span class="c4">Por mês</span><span class="c5">Total</span></div>' + pl +
-              '<div class="comp"><b>✅ Depois de pagar</b>Mande o comprovante no WhatsApp <b>' + esc(fmtPhone(C.whatsapp || "")) + "</b> junto com o seu usuário <b>" + esc(creds.user) + "</b>.</div>" +
+              '<div class="comp"><b>✅ Depois de pagar</b>Mande o comprovante no WhatsApp <b>' + esc(fmtPhone(WA() || "")) + "</b> junto com o seu usuário <b>" + esc(creds.user) + "</b>.</div>" +
             "</div>" +
           "</div></div>");
         bindRail("set");
@@ -1353,7 +1451,7 @@
     lastSync = Date.now();
     tryLogin(creds.user, creds.pass).then(function (r) {
       if (!creds) return;
-      creds.dns = r.dns; account = r.info; save("creds", creds); save("account", account);
+      creds.dns = r.dns; account = r.info; save("creds", creds); save("account", account); applyBrand();
       if (current && current.name === "home") {
         var sp = $app.querySelectorAll(".hhead span");
         if (sp[1]) sp[1].innerHTML = ICON.calsm + " " + esc(fmtDate(account.exp_date));
@@ -1365,7 +1463,12 @@
           if (had) focusEl(nf);
         }
       }
-    }, function () {});
+    }, function (e) {
+      // Sem internet ou painel fora do ar: deixa o cliente continuar. Vencido/bloqueado/outro aparelho: volta pro login com o aviso.
+      if (!e || ["vencido", "bloqueado", "aparelho", "invalido"].indexOf(e.codigo) < 0) return;
+      save("account", null); account = null; cache = {}; epgCache = {}; adultUnlocked = false; stack = [];
+      show(loginScreen(e.message));
+    });
   }
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") syncAccount(false); });
   setInterval(function () { syncAccount(true); }, 15 * 60000);
