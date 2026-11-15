@@ -277,6 +277,8 @@
   }
   function move(dir) {
     var cur = document.activeElement, list = focusables();
+    var pop = document.querySelector(".groups.open");
+    if (pop) { list = list.filter(function (x) { return pop.contains(x); }); if (!cur || !pop.contains(cur)) { focusEl(list[0]); return; } }
     if (!cur || list.indexOf(cur) < 0) { focusEl(list[0]); return; }
     var r = cur.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -362,6 +364,8 @@
   }
   window.appBack = function () {
     if (document.getElementById("busy").className === "show") return true;
+    var pop = document.querySelector(".groups.open");
+    if (pop) { pop.classList.remove("open"); var cb = document.querySelector(".catbtn"); if (cb) focusEl(cb); return true; }
     if (stack.length) {
       var prev = stack.pop();
       current = prev;
@@ -593,7 +597,31 @@
     var r = "";
     for (var i = 0; i < TABS.length; i++)
       r += '<button class="ri focusable' + (TABS[i][0] === tab ? " on" : "") + '" data-k="rail-' + TABS[i][0] + '" data-t="' + TABS[i][0] + '" title="' + TABS[i][1] + '">' + ICON[TABS[i][0]] + "</button>";
+    if (modelo() === 4) {
+      var hints = HINTS[tab] || HINTS.home;
+      return '<div class="shell">' + wm() + '<nav class="rail"><div class="rtop"><img src="' + esc(logoSrc()) + '" alt=""></div>' + r + '<div class="rclock clock">' + clock() + '</div></nav><main class="main">' + inner +
+        '<div class="hintbar">' + hints.map(function (h) { return '<span><i class="hk ' + h[0] + '"></i>' + h[1] + "</span>"; }).join("") + "</div></main></div>";
+    }
     return '<div class="shell">' + wm() + '<nav class="rail' + (modelo() === 3 ? " top" : "") + '">' + r + '</nav><main class="main">' + inner + "</main></div>";
+  }
+  // Dicas do rodapé (modelo 4)
+  var HINTS = {
+    home: [["k-ok", "OK abrir"], ["k-hold", "Segure OK: opções"], ["k-back", "Voltar"]],
+    tv: [["k-ok", "OK assistir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias no topo"], ["k-back", "Voltar"]],
+    vod: [["k-ok", "OK abrir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias no topo"], ["k-back", "Voltar"]],
+    sport: [["k-ok", "OK abrir"], ["k-back", "Voltar"]], hist: [["k-ok", "OK abrir"], ["k-back", "Voltar"]], set: [["k-ok", "OK"], ["k-back", "Voltar"]]
+  };
+  // Modelo 4: as categorias viram uma janela que abre pelo botão "CATEGORIA" no topo da lista
+  function m4Cats(gb, holder, label) {
+    if (modelo() !== 4 || !gb || !holder) return function () {};
+    var b = document.createElement("button");
+    b.className = "catbtn focusable"; b.setAttribute("data-k", "catbtn");
+    function upd() { b.innerHTML = "<small>CATEGORIA:</small> <b>" + esc(label()) + "</b> <i>▾</i>"; }
+    upd();
+    holder.parentNode.insertBefore(b, holder);
+    b.onclick = function () { gb.classList.add("open"); var on = gb.querySelector(".gi.on") || gb.querySelector(".gi"); if (on) focusEl(on); };
+    gb.addEventListener("click", function () { setTimeout(function () { gb.classList.remove("open"); upd(); }, 0); });
+    return upd;
   }
   function bindRail(tab) {
     var b = $app.querySelectorAll(".ri");
@@ -748,7 +776,7 @@
               '<div class="h4list"><div class="h4wait">Carregando canais...</div></div>' +
               payFoot() +
             '</div>' +
-            '<div class="h4r">' + col("h4rec", "Destaques") + col("h4new", "Novidades") + col("h4cont", "Continuar") + '</div>' +
+            '<div class="h4r">' + col("h4cont", "Continuar assistindo") + col("h4rec", "Em alta") + col("h4new", "Lançamentos") + '</div>' +
           '</div>');
         bindRail("home");
         var pf = $app.querySelector(".payfoot"); if (pf) pf.onclick = function () { go(pixScreen()); };
@@ -874,7 +902,7 @@
           function fill(list, into) {
             var h = "";
             list.slice(0, 600).forEach(function (c, idx) {
-              h += '<button class="ch focusable" data-k="ch-' + c.stream_id + '" data-i="' + idx + '">' +
+              h += '<button class="ch focusable" data-k="ch-' + c.stream_id + '" data-i="' + idx + '"><span class="chn">' + pad(c.num || idx + 1, 3) + "</span>" +
                 (c.stream_icon ? '<img loading="lazy" src="' + esc(c.stream_icon) + '" onerror="this.style.visibility=\'hidden\'">' : "<i></i>") +
                 '<span class="cn"><b>' + esc(c.name) + (isFav("live", c.stream_id) ? " ★" : "") + '</b><small data-now="' + c.stream_id + '"></small></span></button>';
             });
@@ -906,7 +934,8 @@
           }
           var gt = 0;
           function guide(c) {
-            $app.querySelector(".gprev").innerHTML = (c.stream_icon ? '<img src="' + esc(c.stream_icon) + '" onerror="this.remove()">' : "") + "<div><b>" + esc(c.name) + "</b><small>OK assiste · segure OK p/ favoritar</small><button class=\"gfav focusable\" data-k=\"gfav\">" + (isFav("live", c.stream_id) ? "★ Nos favoritos" : "☆ Favoritar canal") + "</button></div>";
+            if (modelo() === 4) $app.querySelector(".gprev").setAttribute("data-bg", c.stream_icon || "");
+            $app.querySelector(".gprev").innerHTML = (modelo() === 4 ? '<div class="pvbox">' + (c.stream_icon ? '<img src="' + esc(c.stream_icon) + '" onerror="this.remove()">' : ICON.tvbig) + '<i class="pvplay">' + PLAY_SVG + "</i></div>" : "") + (c.stream_icon ? '<img src="' + esc(c.stream_icon) + '" onerror="this.remove()">' : "") + "<div><b>" + esc(c.name) + "</b><small>OK assiste · segure OK p/ favoritar</small><button class=\"gfav focusable\" data-k=\"gfav\">" + (isFav("live", c.stream_id) ? "★ Nos favoritos" : "☆ Favoritar canal") + "</button></div>";
             var gf = $app.querySelector(".gfav");
             gf.onclick = function () { var on = toggleFav("live", c, c.stream_id); this.textContent = on ? "★ Nos favoritos" : "☆ Favoritar canal"; var b = $app.querySelector('[data-k="ch-' + c.stream_id + '"] b'); if (b) b.textContent = c.name + (on ? " ★" : ""); };
             var gl = $app.querySelector(".glist"); gl.innerHTML = '<div class="empty">Carregando guia...</div>';
@@ -927,6 +956,12 @@
           var selBtn = gb.querySelector('[data-g="' + String(st.sel).replace(/"/g, "") + '"]');
           if (!selBtn || selBtn.getAttribute("data-lock")) st.sel = "all";
           mark(st.sel); fill(pick(st.sel));
+          m4Cats(gb, $app.querySelector(".chans"), function () {
+            var o = gb.querySelector(".gi.on"); if (!o) return "Todos os canais";
+            var g = o.getAttribute("data-g"); if (g === "all") return "Todos os canais";
+            var c = o.cloneNode(true), sv = c.querySelectorAll("svg"); for (var z = 0; z < sv.length; z++) sv[z].parentNode.removeChild(sv[z]);
+            return c.textContent.replace(/^\s+|\s+$/g, "");
+          });
           if (back) restore(self, ".ch"); else focusEl($app.querySelector(".ch") || $app.querySelector('.gi.on'));
         }, function (e) { $app.querySelector(".chans").innerHTML = '<div class="empty">Erro: ' + esc(e.message) + "</div>"; });
       }
@@ -1013,8 +1048,12 @@
             var h = "";
             list.slice(0, 300).forEach(function (x, idx) {
               var m = x.it, img = x.kind === "series" ? m.cover : m.stream_icon;
-              h += '<button class="card focusable" data-k="c-' + x.kind[0] + (x.kind === "series" ? m.series_id : m.stream_id) + '" data-i="' + idx + '"><div class="poster"' + bg(img) + '>' + (isFav(x.kind, x.kind === "series" ? m.series_id : m.stream_id) ? '<i class="fstar">★</i>' : "") + '</div><span>' + esc(m.name) + "</span></button>";
+              var rt = Number(m.rating_5based ? m.rating_5based * 2 : m.rating) || 0;
+              h += '<button class="card focusable" data-k="c-' + x.kind[0] + (x.kind === "series" ? m.series_id : m.stream_id) + '" data-i="' + idx + '"><div class="poster"' + bg(img) + '>' + (isFav(x.kind, x.kind === "series" ? m.series_id : m.stream_id) ? '<i class="fstar">★</i>' : "") +
+                '<div class="pov"><b>' + esc(m.name) + "</b>" + (rt ? "<em>" + (Math.round(rt * 10) / 10) + " ★</em>" : "") + "</div></div><span>" + esc(m.name) + "</span></button>";
             });
+            var tot = $app.querySelector(".vtot");
+            if (tot && into === $app.querySelector(".grid")) tot.innerHTML = "<b>" + fmtN(list.length) + "</b> " + (st.g === "series" ? "séries" : st.g === "movie" ? "filmes" : "títulos") + " · Ordem: <em>" + (st.t === 0 && (st.g === "movie" || st.g === "series" || st.g === "dest") ? "Últimos adicionados" : "Categoria") + "</em>";
             into.innerHTML = '<div class="gridin">' + (h || '<div class="empty">' + (st.g === "fav" ? "Segure OK numa capa para favoritar" : "Nada por aqui") + "</div>") + "</div>";
             var c = into.querySelectorAll(".card");
             for (var k = 0; k < c.length; k++) {
@@ -1022,7 +1061,9 @@
               c[k].oncontextmenu = (function (x, el) { return function (e) { e.preventDefault(); var on = toggleFav(x.kind, x.it, x.kind === "series" ? x.it.series_id : x.it.stream_id); var p = el.querySelector(".poster"), st = p && p.querySelector(".fstar"); if (on && p && !st) p.insertAdjacentHTML("beforeend", '<i class="fstar">★</i>'); else if (!on && st) st.remove(); }; })(list[k], c[k]);
             }
           }
+          if (modelo() === 4) $app.querySelector(".tabs").insertAdjacentHTML("beforebegin", '<div class="vtot"></div>');
           draw();
+          m4Cats(gb, $app.querySelector(".vtot") || $app.querySelector(".tabs"), function () { var o = gb.querySelector(".gi.on .gn") || gb.querySelector(".gi.on"); return o ? o.textContent : "Destaques"; });
           if (back) restore(self, ".card"); else focusEl($app.querySelector(".card") || $app.querySelector(".gi.on"));
         }, function (e) { $app.querySelector(".grid").innerHTML = '<div class="empty">Erro: ' + esc(e.message) + "</div>"; });
       }
