@@ -748,3 +748,12 @@ html[data-modelo="4"] .rtop { background: #121214; border-bottom: 2px solid rgba
 .errbox span { color: #cfd0d6; font-size: 17px; }
 .errbox .retry { margin: 16px 0 0; padding: 12px 34px; border-radius: 30px; background: var(--red); color: #fff; font-weight: 800; }
 .errbox .retry:focus { background: #fff; color: #111; transform: scale(1.05); }
+/* Modelo 4: só a logomarca do menu; usuário no lugar da logo; vencimento no canto de baixo à direita */
+.h4exp { display: none; }
+html[data-modelo="4"] .h4top { font-size: 19px; }
+html[data-modelo="4"] .h4user { font-weight: 700; color: #fff; }
+html[data-modelo="4"] .h4user svg { width: 24px; height: 24px; }
+html[data-modelo="4"] .h4exp { display: flex; align-items: center; gap: 6px; position: fixed; right: 16px; bottom: 6px; z-index: 30;
+  padding: 4px 12px; border-radius: 6px; background: rgba(0,0,0,.55); color: #ddd; font-size: 14px; }
+html[data-modelo="4"] .h4exp svg { width: 16px; height: 16px; color: var(--red); }
+html[data-modelo="4"] .h4exp b { color: #fff; }

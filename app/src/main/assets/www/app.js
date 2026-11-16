@@ -788,7 +788,8 @@
         $app.innerHTML = frame("home",
           '<div class="h4">' +
             '<div class="h4l">' +
-              '<div class="h4top"><img class="hlogo" src="' + esc(logoSrc()) + '" alt=""><span class="h4user">' + ICON.user + " " + esc(creds.user) + '</span><span class="clock">' + clock() + '</span></div>' +
+              '<div class="h4top"><span class="h4user">' + ICON.user + " " + esc(creds.user) + '</span><span class="clock">' + clock() + '</span></div>' +
+              '<div class="h4exp">' + ICON.calsm + ' Vencimento: <b>' + esc(fmtDate(account && account.exp_date)) + "</b></div>" +
               '<button class="h4prev focusable" data-k="h4prev"><div class="bimg"></div><i class="h4play">' + PLAY_SVG + '</i><div class="h4cap"><b>' + esc(brandName()) + '</b><small>Carregando destaques...</small></div></button>' +
               '<div class="h4list"><div class="h4wait">Carregando canais...</div></div>' +
               payFoot() +
@@ -1644,6 +1645,7 @@
       if (current && current.name === "home") {
         var sp = $app.querySelectorAll(".hhead span");
         if (sp[1]) sp[1].innerHTML = ICON.calsm + " " + esc(fmtDate(account.exp_date));
+        var ex = $app.querySelector(".h4exp b"); if (ex) ex.textContent = fmtDate(account.exp_date);
         var pf = $app.querySelector(".payfoot");
         if (pf) {
           var had = document.activeElement === pf, tmp = document.createElement("div");
