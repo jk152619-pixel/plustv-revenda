@@ -738,3 +738,13 @@ html[data-modelo="4"] .rtop { background: #121214; border-bottom: 2px solid rgba
 /* Tela de renovar: tabela de planos com espaço */
 .set .pcard.plans { margin: 14px 0; max-width: 760px; }
 .pcard.pay [data-k="px-back"] { margin: 8px 0 0; padding: 8px 20px; font-size: 16px; }
+/* Avisos e erros: caixa centralizada e organizada */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+  max-width: 560px; margin: 28px auto; padding: 22px 26px; border-radius: 14px; background: rgba(30,31,37,.92);
+  border: 1px solid rgba(255,255,255,.08); box-shadow: 0 12px 30px rgba(0,0,0,.4); color: #d6d7dc; font-size: 17px; line-height: 1.4; }
+.glist .empty, .h4col .empty { margin: 14px 8px; padding: 14px; font-size: 15px; box-shadow: none; }
+.errbox { padding: 28px 30px; }
+.errbox b { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.errbox span { color: #cfd0d6; font-size: 17px; }
+.errbox .retry { margin: 16px 0 0; padding: 12px 34px; border-radius: 30px; background: var(--red); color: #fff; font-weight: 800; }
+.errbox .retry:focus { background: #fff; color: #111; transform: scale(1.05); }

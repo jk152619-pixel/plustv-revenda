@@ -253,17 +253,25 @@
       var s = getComputedStyle(p);
       if (/(auto|scroll)/.test(s.overflowY) && p.scrollHeight > p.clientHeight) {
         var r = el.getBoundingClientRect(), pr = p.getBoundingClientRect();
-        if (r.top < pr.top + m) p.scrollTop -= (pr.top + m - r.top);
+        // Primeiro item da lista: volta tudo para o topo (mostra o título e o cabeçalho inteiros)
+        if (p.querySelector(".focusable") === el) p.scrollTop = 0;
+        else if (r.top < pr.top + m) p.scrollTop -= (pr.top + m - r.top);
         else if (r.bottom > pr.bottom - m) p.scrollTop += (r.bottom - pr.bottom + m);
       }
       if (/(auto|scroll)/.test(s.overflowX) && p.scrollWidth > p.clientWidth) {
         var r2 = el.getBoundingClientRect(), pr2 = p.getBoundingClientRect();
-        if (r2.left < pr2.left + m) p.scrollLeft -= (pr2.left + m - r2.left);
+        if (p.querySelector(".focusable") === el) p.scrollLeft = 0;
+        else if (r2.left < pr2.left + m) p.scrollLeft -= (pr2.left + m - r2.left);
         else if (r2.right > pr2.right - m) p.scrollLeft += (r2.right - pr2.right + m);
       }
       p = p.parentElement;
     }
   }
+  // Caixa de erro centralizada, com "Tentar novamente"
+  function errBox(msg) {
+    return '<div class="empty errbox"><b>Ocorreu um erro</b><span>' + esc(msg) + '</span><button class="sbtn focusable retry" data-k="retry" onclick="window.appRetry()">Tentar novamente</button></div>';
+  }
+  window.appRetry = function () { if (current && current.render) current.render(); };
   function focusEl(el) {
     if (!el) return;
     try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
@@ -972,7 +980,7 @@
             return c.textContent.replace(/^\s+|\s+$/g, "");
           });
           if (back) restore(self, ".ch"); else focusEl($app.querySelector(".ch") || $app.querySelector('.gi.on'));
-        }, function (e) { $app.querySelector(".chans").innerHTML = '<div class="empty">Erro: ' + esc(e.message) + "</div>"; });
+        }, function (e) { $app.querySelector(".chans").innerHTML = errBox("Não foi possível carregar os canais do seu provedor. " + e.message); });
       }
     };
   }
@@ -1092,7 +1100,7 @@
           draw();
           m4Cats(gb, $app.querySelector(".vtot") || $app.querySelector(".tabs"), function () { var o = gb.querySelector(".gi.on .gn") || gb.querySelector(".gi.on"); return o ? o.textContent : "Destaques"; });
           if (back) restore(self, ".card"); else focusEl($app.querySelector(".card") || $app.querySelector(".gi.on"));
-        }, function (e) { $app.querySelector(".grid").innerHTML = '<div class="empty">Erro: ' + esc(e.message) + "</div>"; });
+        }, function (e) { $app.querySelector(".grid").innerHTML = errBox("Não foi possível carregar os filmes e séries do seu provedor. " + e.message); });
       }
     };
   }
@@ -1344,7 +1352,7 @@
           box.innerHTML = list.length ? '<div class="gcol">' + list.map(function (g, i) { return gameHtml(g, i, true); }).join("") + "</div>" : '<div class="empty">Nenhum jogo das principais ligas hoje. Veja o Calendário de eventos.</div>';
           bindGames(box, list);
           if (back) restore(self, ".spc");
-        }, function () { box.innerHTML = '<div class="empty">Não foi possível carregar os jogos agora. Confira a internet e tente de novo.</div>'; });
+        }, function () { box.innerHTML = errBox("Não foi possível carregar os jogos agora. Confira a internet e tente de novo."); });
         if (back) restore(self, ".spc"); else focusFirst(".spc");
       }
     };
@@ -1370,7 +1378,7 @@
           dayGames(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12)).then(function (all) {
             box.innerHTML = all.map(function (g, i) { return gameHtml(g, i, true); }).join("") || '<div class="empty">Nenhum jogo nesse dia</div>';
             bindGames(box, all);
-          }, function () { box.innerHTML = '<div class="empty">Não foi possível carregar os jogos agora</div>'; });
+          }, function () { box.innerHTML = errBox("Não foi possível carregar os jogos agora."); });
         }
         load2();
         if (back) restore(self, ".day.on"); else focusEl($app.querySelector('.day[data-d="' + cur + '"]'));
@@ -1397,7 +1405,7 @@
             if (lg !== cur || !document.body.contains(box)) return;
             var all = [], seen = {}, fails = 0;
             r.forEach(function (x) { if (x === null) { fails++; return; } x.forEach(function (gm) { if (!seen[gm.id]) { seen[gm.id] = 1; all.push(gm); } }); });
-            if (fails === r.length) { box.innerHTML = '<div class="empty">Não foi possível carregar agora. Confira a internet e tente de novo.</div>'; return; }
+            if (fails === r.length) { box.innerHTML = errBox("Não foi possível carregar agora. Confira a internet e tente de novo."); return; }
             all.sort(function (x, y) { return x.t - y.t; });
             var h = "", lastDay = "";
             all.forEach(function (gm, i) { var dl = dayLbl(gm.t.getTime() / 1000); if (dl !== lastDay) { h += '<div class="eday">' + esc(dl) + "</div>"; lastDay = dl; } h += gameHtml(gm, i, false); });
@@ -1447,7 +1455,7 @@
               }).join("") + "</table>";
             });
             box.innerHTML = out || '<div class="empty">Classificação indisponível para essa liga</div>';
-          }, function () { box.innerHTML = '<div class="empty">Não foi possível carregar agora</div>'; });
+          }, function () { box.innerHTML = errBox("Não foi possível carregar a classificação agora."); });
         }
         show2();
         if (back) restore(self, ".gi.on"); else focusFirst(".gi");
