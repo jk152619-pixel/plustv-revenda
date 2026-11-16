@@ -279,6 +279,15 @@
     var cur = document.activeElement, list = focusables();
     var pop = document.querySelector(".groups.open");
     if (pop) { list = list.filter(function (x) { return pop.contains(x); }); if (!cur || !pop.contains(cur)) { focusEl(list[0]); return; } }
+    // Modelo 4: na última capa/canal da linha, a seta para a direita abre as categorias
+    if (!pop && dir === "right" && modelo() === 4 && cur && cur.closest) {
+      var area = cur.closest(".gridin") || cur.closest(".chans") || cur.closest(".h4c");
+      if (area && !area.closest(".h4")) {
+        var cr = cur.getBoundingClientRect(), more = false, inA = area.querySelectorAll(".focusable");
+        for (var ai = 0; ai < inA.length; ai++) { var qr = inA[ai].getBoundingClientRect(); if (inA[ai] !== cur && qr.left >= cr.right - 2 && qr.top < cr.bottom && qr.bottom > cr.top) { more = true; break; } }
+        if (!more) { var cbt0 = document.querySelector(".catbtn"); if (cbt0) { cbt0.click(); return; } }
+      }
+    }
     if (!cur || list.indexOf(cur) < 0) { focusEl(list[0]); return; }
     var r = cur.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -607,8 +616,8 @@
   // Dicas do rodapé (modelo 4)
   var HINTS = {
     home: [["k-ok", "OK abrir"], ["k-hold", "Segure OK: opções"], ["k-back", "Voltar"]],
-    tv: [["k-ok", "OK assistir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias no topo"], ["k-back", "Voltar"]],
-    vod: [["k-ok", "OK abrir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias no topo"], ["k-back", "Voltar"]],
+    tv: [["k-ok", "OK assistir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias: seta ▶ no fim da linha"], ["k-back", "Voltar"]],
+    vod: [["k-ok", "OK abrir"], ["k-hold", "Segure OK: favoritar"], ["k-cat", "Categorias: seta ▶ no fim da linha"], ["k-back", "Voltar"]],
     sport: [["k-ok", "OK abrir"], ["k-back", "Voltar"]], hist: [["k-ok", "OK abrir"], ["k-back", "Voltar"]], set: [["k-ok", "OK"], ["k-back", "Voltar"]]
   };
   // Modelo 4: as categorias viram uma janela que abre pelo botão "CATEGORIA" no topo da lista
@@ -1021,10 +1030,28 @@
           var gi = gb.querySelectorAll(".gi");
           for (var i = 0; i < gi.length; i++) gi[i].onclick = function () {
             var v = this.getAttribute("data-g");
-            if (v === "search") { mark(v); $app.querySelector(".tabs").innerHTML = ""; searchBox($app.querySelector(".grid"), "Nome do filme ou série", function (q, res) {
-              var l = wrap("movie", D.movies.filter(function (m) { return norm(m.name).indexOf(q) >= 0; })).concat(wrap("series", D.series.filter(function (m) { return norm(m.name).indexOf(q) >= 0; })));
-              cards(l, res);
-            }); return; }
+            if (v === "search") {
+              mark(v);
+              // Busca com escolha: tudo, só filmes ou só séries
+              var sk = st.sk || "all", tbs = $app.querySelector(".tabs"), vtt = $app.querySelector(".vtot");
+              if (vtt) vtt.innerHTML = "<b>Buscar</b> · escolha onde procurar";
+              var kinds = [["all", "Filmes e Séries"], ["movie", "Só Filmes"], ["series", "Só Séries"]];
+              tbs.innerHTML = kinds.map(function (k) { return '<button class="tab focusable' + (k[0] === sk ? " on" : "") + '" data-k="sk-' + k[0] + '" data-sk="' + k[0] + '">' + k[1] + "</button>"; }).join("");
+              var skb = tbs.querySelectorAll(".tab");
+              for (var z = 0; z < skb.length; z++) skb[z].onclick = function () {
+                sk = st.sk = this.getAttribute("data-sk");
+                for (var y = 0; y < skb.length; y++) skb[y].classList.toggle("on", skb[y] === this);
+                var qi = $app.querySelector("#q");
+                if (qi) { qi.placeholder = sk === "movie" ? "Nome do filme" : sk === "series" ? "Nome da série" : "Nome do filme ou série"; if (qi.value.trim().length >= 2) qi.onenter(); else focusEl(qi); }
+              };
+              searchBox($app.querySelector(".grid"), sk === "movie" ? "Nome do filme" : sk === "series" ? "Nome da série" : "Nome do filme ou série", function (q, res) {
+                var l = [];
+                if (sk !== "series") l = l.concat(wrap("movie", D.movies.filter(function (m) { return norm(m.name).indexOf(q) >= 0; })));
+                if (sk !== "movie") l = l.concat(wrap("series", D.series.filter(function (m) { return norm(m.name).indexOf(q) >= 0; })));
+                cards(l, res);
+              });
+              return;
+            }
             if (v === "adult" && !adultUnlocked) { askPin(function () { st.g = "adult"; st.t = 0; }, "Conteúdo adulto"); return; }
             st.g = v; st.t = 0; draw();
             var f = $app.querySelector(".card") || $app.querySelector(".tab"); if (f) focusEl(f);
